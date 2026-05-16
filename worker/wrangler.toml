@@ -1,0 +1,14 @@
+name = "ryokan-dx-worker"
+main = "src/index.ts"
+compatibility_date = "2026-05-16"
+compatibility_flags = ["nodejs_compat"]
+
+# Local dev port (frontend at :5173 will call this)
+[dev]
+port = 8787
+
+# D1 binding will be added in Step 4
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "ryokan-dx-db"
+# database_id = "<filled in after wrangler d1 create>"
