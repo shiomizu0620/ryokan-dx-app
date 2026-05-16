@@ -3,7 +3,7 @@ import { cors } from 'hono/cors'
 
 type Bindings = {
   ANTHROPIC_API_KEY: string
-  // DB: D1Database  // added in Step 4
+  DB: D1Database
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
