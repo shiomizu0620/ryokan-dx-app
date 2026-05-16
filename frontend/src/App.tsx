@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
-
-type Message = { role: 'user' | 'assistant'; content: string }
+import { useState } from 'react'
+import { Chat } from './Chat'
+import { Report } from './Report'
+import type { AnalyzeResponse, Message } from './types'
 
 const INITIAL_GREETING: Message = {
   role: 'assistant',
@@ -8,127 +9,97 @@ const INITIAL_GREETING: Message = {
     'こんにちは。旅館DX診断の「番頭さん」です。\n\nお宿の業務にある「無駄」を一緒に見つけて、雰囲気を守りながら改善できそうなところを探していきましょう。\n\nまず、お宿のお名前を教えていただけますか?',
 }
 
+type View =
+  | { kind: 'chat' }
+  | { kind: 'analyzing' }
+  | { kind: 'report'; data: AnalyzeResponse }
+  | { kind: 'error'; message: string }
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([INITIAL_GREETING])
-  const [input, setInput] = useState('')
-  const [streaming, setStreaming] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState<View>({ kind: 'chat' })
 
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [messages])
-
-  async function send() {
-    const trimmed = input.trim()
-    if (!trimmed || streaming) return
-    setError(null)
-
-    const userMsg: Message = { role: 'user', content: trimmed }
-    const sentMessages = [...messages, userMsg]
-    setMessages([...sentMessages, { role: 'assistant', content: '' }])
-    setInput('')
-    setStreaming(true)
-
+  async function analyze() {
+    setView({ kind: 'analyzing' })
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: sentMessages }),
+        body: JSON.stringify({ messages }),
       })
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
         const detail = await res.text().catch(() => '')
         throw new Error(`server ${res.status}: ${detail}`)
       }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let assistantText = ''
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        assistantText += decoder.decode(value, { stream: true })
-        setMessages([
-          ...sentMessages,
-          { role: 'assistant', content: assistantText },
-        ])
-      }
+      const data = (await res.json()) as AnalyzeResponse
+      setView({ kind: 'report', data })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-      setMessages(sentMessages)
-    } finally {
-      setStreaming(false)
+      setView({
+        kind: 'error',
+        message: e instanceof Error ? e.message : String(e),
+      })
     }
   }
 
+  function backToChat() {
+    setView({ kind: 'chat' })
+  }
+
+  function reset() {
+    setMessages([INITIAL_GREETING])
+    setView({ kind: 'chat' })
+  }
+
+  if (view.kind === 'analyzing') {
+    return <AnalyzingView />
+  }
+
+  if (view.kind === 'error') {
+    return <ErrorView message={view.message} onBack={backToChat} />
+  }
+
+  if (view.kind === 'report') {
+    return <Report data={view.data} onBack={backToChat} onReset={reset} />
+  }
+
+  return <Chat messages={messages} setMessages={setMessages} onAnalyze={analyze} />
+}
+
+function AnalyzingView() {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="max-w-2xl mx-auto px-4 py-3">
-          <h1 className="text-lg font-semibold text-slate-900">旅館DX診断</h1>
-          <p className="text-xs text-slate-500">
-            話しかけるだけで、旅館の無駄がわかる。
-          </p>
-        </div>
-      </header>
-
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 whitespace-pre-wrap leading-relaxed text-sm sm:text-base ${
-                  m.role === 'user'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white border border-slate-200 text-slate-900'
-                }`}
-              >
-                {m.content ||
-                  (streaming && i === messages.length - 1 ? '…' : '')}
-              </div>
-            </div>
-          ))}
-          {error && (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              エラー: {error}
-            </div>
-          )}
-        </div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="max-w-sm w-full text-center space-y-4">
+        <div className="w-12 h-12 mx-auto rounded-full border-4 border-slate-200 border-t-slate-900 animate-spin" />
+        <p className="text-slate-900 font-medium">番頭さんが集計中です…</p>
+        <p className="text-sm text-slate-500">
+          会話の内容を整理して、損失と改善策をまとめています（10〜20秒ほど）
+        </p>
       </div>
+    </div>
+  )
+}
 
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="max-w-2xl mx-auto px-4 py-3">
-          <div className="flex gap-2 items-end">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  send()
-                }
-              }}
-              placeholder="メッセージを入力 (Shift+Enter で改行)"
-              rows={1}
-              disabled={streaming}
-              className="flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-2 text-sm sm:text-base focus:outline-none focus:border-slate-500 disabled:bg-slate-100"
-            />
-            <button
-              type="button"
-              onClick={send}
-              disabled={streaming || !input.trim()}
-              className="rounded-full bg-slate-900 px-5 py-2 text-white font-medium text-sm sm:text-base hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
-            >
-              送信
-            </button>
-          </div>
-        </div>
-      </footer>
+function ErrorView({
+  message,
+  onBack,
+}: {
+  message: string
+  onBack: () => void
+}) {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="max-w-sm w-full text-center space-y-4 bg-white rounded-2xl border border-slate-200 p-6">
+        <p className="text-2xl">😵</p>
+        <p className="text-slate-900 font-medium">集計に失敗しました</p>
+        <p className="text-xs text-slate-500 break-all">{message}</p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-full rounded-full bg-slate-900 px-5 py-2.5 text-white font-medium hover:bg-slate-700 transition-colors"
+        >
+          会話に戻る
+        </button>
+      </div>
     </div>
   )
 }
