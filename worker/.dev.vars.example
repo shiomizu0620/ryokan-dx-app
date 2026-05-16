@@ -1,0 +1,5 @@
+# Copy this file to `.dev.vars` and fill in real values.
+# `.dev.vars` is git-ignored. Wrangler loads it automatically in `wrangler dev`.
+# For production, register secrets with: `npx wrangler secret put <NAME>`.
+
+ANTHROPIC_API_KEY=sk-ant-replace-with-real-key

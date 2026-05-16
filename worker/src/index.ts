@@ -19,6 +19,22 @@ app.use(
 
 app.get('/', (c) => c.text('ryokan-dx worker'))
 
+app.get('/api/health', async (c) => {
+  const key = c.env.ANTHROPIC_API_KEY
+  let db_ok = false
+  try {
+    await c.env.DB.prepare('SELECT 1').first()
+    db_ok = true
+  } catch {
+    db_ok = false
+  }
+  return c.json({
+    ok: true,
+    has_api_key: typeof key === 'string' && key.length > 0,
+    db_ok,
+  })
+})
+
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 type ChatRequest = { messages?: ChatMessage[] }
 

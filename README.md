@@ -38,43 +38,66 @@ ryokan-dx-app/
 
 ## セットアップ
 
-> 詳細はセットアップ完了後に追記します。
-
 ### 必要なもの
 
 - Node.js 18以上
 - Git
-- Cloudflareアカウント / Wrangler CLI
+- Cloudflareアカウント / Wrangler CLI（`npx wrangler login`）
 - Anthropic APIキー（`sk-ant-...`）
 
-### ローカル開発
+### 1. 依存関係インストール
 
 ```bash
-# フロントエンド
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install
+cd ../worker && npm install
+```
 
-# Worker（別ターミナル）
+### 2. 環境変数（worker）
+
+`worker/.dev.vars.example` をコピーして実際のキーを入れます。`.dev.vars` 自体は git 管理外です。
+
+```bash
 cd worker
-npm install
-npx wrangler dev
+cp .dev.vars.example .dev.vars
+# .dev.vars の ANTHROPIC_API_KEY を本物のキーに書き換える
 ```
 
-### 環境変数 / シークレット
-
-開発時は `worker/.dev.vars` に以下を設定します（このファイルは Git 管理外）。
-
-```
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxx
-```
-
-本番環境への登録は以下のコマンドで行います。
+本番環境のシークレットは Wrangler に登録します（ローカルの `.dev.vars` とは別物）。
 
 ```bash
 cd worker
 npx wrangler secret put ANTHROPIC_API_KEY
 ```
+
+### 3. D1（Cloudflare のSQLite）
+
+新しいCloudflareアカウントでセットアップし直す場合のみ:
+
+```bash
+cd worker
+npx wrangler d1 create ryokan-dx-db
+# 出力された database_id を wrangler.toml の [[d1_databases]] に貼る
+```
+
+マイグレーション適用:
+
+```bash
+cd worker
+npx wrangler d1 migrations apply ryokan-dx-db --local    # ローカル開発用 SQLite
+npx wrangler d1 migrations apply ryokan-dx-db --remote   # 本番用リモート D1
+```
+
+### 4. ローカル起動
+
+```bash
+# フロントエンド（http://localhost:5173）
+cd frontend && npm run dev
+
+# Worker（別ターミナル / http://127.0.0.1:8787）
+cd worker && npx wrangler dev
+```
+
+疎通確認: `curl http://127.0.0.1:8787/api/health` で `{"ok":true,"has_api_key":true,"db_ok":true}` が返れば `.dev.vars` と D1 binding が両方読めています。
 
 ## デプロイ
 
