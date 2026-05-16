@@ -11,8 +11,8 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@google/genai": "^2.3.0",
-    "hono": "^4.12.18"
+    "hono": "^4.12.18",
+    "openai": "^6.38.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260516.1",

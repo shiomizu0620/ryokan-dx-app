@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { GoogleGenAI, Type } from '@google/genai'
+import OpenAI from 'openai'
 import { OPERATION_IDS } from './presets'
 import {
   computeLosses,
@@ -9,11 +9,11 @@ import {
 } from './analyze'
 
 type Bindings = {
-  GEMINI_API_KEY: string
+  OPENAI_API_KEY: string
   DB: D1Database
 }
 
-const MODEL = 'gemini-2.5-flash'
+const MODEL = 'gpt-4o-mini'
 
 const SYSTEM_PROMPT = `あなたは旅館のDX診断を行うコンサルタント「番頭さん」です。
 旅館・宿泊施設の現場担当者や経営者との会話を通じて、業務上の無駄を見つけ、
@@ -57,7 +57,7 @@ new_staff_onboarding は年に何人入るかから月割り（例: 年6人な�
 
 zones.affected_operation_ids: そのゾーンが上記オペレーションIDのどれと関連するかを配列で。関係なければ空配列。
 
-会話に出てこない情報は推測せず省略してください。`
+profile の各フィールドは、会話に出てこない場合は null を入れてください（必ず全フィールドを返す）。`
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -73,7 +73,7 @@ app.use(
 app.get('/', (c) => c.text('ryokan-dx worker'))
 
 app.get('/api/health', async (c) => {
-  const key = c.env.GEMINI_API_KEY
+  const key = c.env.OPENAI_API_KEY
   let db_ok = false
   try {
     await c.env.DB.prepare('SELECT 1').first()
@@ -83,7 +83,7 @@ app.get('/api/health', async (c) => {
   }
   return c.json({
     ok: true,
-    has_gemini_key: typeof key === 'string' && key.length > 0,
+    has_openai_key: typeof key === 'string' && key.length > 0,
     db_ok,
   })
 })
@@ -103,21 +103,20 @@ app.post('/api/chat', async (c) => {
     return c.json({ error: 'messages required' }, 400)
   }
 
-  const ai = new GoogleGenAI({ apiKey: c.env.GEMINI_API_KEY })
-  const contents = messages.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
+  const client = new OpenAI({ apiKey: c.env.OPENAI_API_KEY })
 
   let stream
   try {
-    stream = await ai.models.generateContentStream({
+    stream = await client.chat.completions.create({
       model: MODEL,
-      contents,
-      config: { systemInstruction: SYSTEM_PROMPT },
+      stream: true,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ],
     })
   } catch (e) {
-    console.error('Gemini generateContentStream failed:', e)
+    console.error('OpenAI chat completion failed:', e)
     return c.json(
       { error: 'failed to start chat', detail: String(e) },
       500,
@@ -129,11 +128,11 @@ app.post('/api/chat', async (c) => {
     async start(controller) {
       try {
         for await (const chunk of stream) {
-          const text = chunk.text
-          if (text) controller.enqueue(encoder.encode(text))
+          const delta = chunk.choices[0]?.delta?.content
+          if (delta) controller.enqueue(encoder.encode(delta))
         }
       } catch (e) {
-        console.error('Gemini stream error:', e)
+        console.error('OpenAI stream error:', e)
       } finally {
         controller.close()
       }
@@ -149,52 +148,74 @@ app.post('/api/chat', async (c) => {
   })
 })
 
+// OpenAI structured outputs requires strict mode:
+// - additionalProperties: false on every object
+// - every property must appear in `required`
+// - optional fields use `type: ['T', 'null']`
 const ANALYSIS_SCHEMA = {
-  type: Type.OBJECT,
+  type: 'object',
+  additionalProperties: false,
+  required: ['profile', 'operations_in_use', 'zones'],
   properties: {
     profile: {
-      type: Type.OBJECT,
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'name',
+        'rooms',
+        'staff_count',
+        'foreign_ratio',
+        'main_customer',
+        'stay_pattern',
+      ],
       properties: {
-        name: { type: Type.STRING },
-        rooms: { type: Type.INTEGER },
-        staff_count: { type: Type.INTEGER },
-        foreign_ratio: { type: Type.NUMBER },
-        main_customer: { type: Type.STRING },
-        stay_pattern: { type: Type.STRING },
+        name: { type: ['string', 'null'] },
+        rooms: { type: ['integer', 'null'] },
+        staff_count: { type: ['integer', 'null'] },
+        foreign_ratio: { type: ['number', 'null'] },
+        main_customer: { type: ['string', 'null'] },
+        stay_pattern: { type: ['string', 'null'] },
       },
     },
     operations_in_use: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'monthly_occurrences', 'reason'],
         properties: {
-          id: { type: Type.STRING, enum: [...OPERATION_IDS] },
-          monthly_occurrences: { type: Type.NUMBER },
-          reason: { type: Type.STRING },
+          id: { type: 'string', enum: [...OPERATION_IDS] },
+          monthly_occurrences: { type: 'number' },
+          reason: { type: 'string' },
         },
-        required: ['id', 'monthly_occurrences'],
       },
     },
     zones: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'area',
+          'dx',
+          'reason',
+          'sensitivity',
+          'affected_operation_ids',
+        ],
         properties: {
-          area: { type: Type.STRING },
-          dx: { type: Type.STRING, enum: ['NG', '要相談', 'OK'] },
-          reason: { type: Type.STRING },
-          sensitivity: { type: Type.STRING, enum: ['high', 'medium', 'low'] },
+          area: { type: 'string' },
+          dx: { type: 'string', enum: ['NG', '要相談', 'OK'] },
+          reason: { type: 'string' },
+          sensitivity: { type: 'string', enum: ['high', 'medium', 'low'] },
           affected_operation_ids: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING, enum: [...OPERATION_IDS] },
+            type: 'array',
+            items: { type: 'string', enum: [...OPERATION_IDS] },
           },
         },
-        required: ['area', 'dx'],
       },
     },
   },
-  required: ['profile', 'operations_in_use', 'zones'],
-}
+} as const
 
 app.post('/api/analyze', async (c) => {
   let body: ChatRequest
@@ -208,38 +229,37 @@ app.post('/api/analyze', async (c) => {
     return c.json({ error: 'messages required' }, 400)
   }
 
-  const ai = new GoogleGenAI({ apiKey: c.env.GEMINI_API_KEY })
-  const contents = messages.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
+  const client = new OpenAI({ apiKey: c.env.OPENAI_API_KEY })
 
-  let extractedRaw: string
+  let raw: string
   try {
-    const response = await ai.models.generateContent({
+    const response = await client.chat.completions.create({
       model: MODEL,
-      contents,
-      config: {
-        systemInstruction: ANALYSIS_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        responseSchema: ANALYSIS_SCHEMA,
+      messages: [
+        { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'ryokan_analysis',
+          schema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
+          strict: true,
+        },
       },
     })
-    extractedRaw = response.text ?? ''
+    raw = response.choices[0]?.message?.content ?? ''
   } catch (e) {
-    console.error('Gemini analysis failed:', e)
+    console.error('OpenAI analysis failed:', e)
     return c.json({ error: 'analysis failed', detail: String(e) }, 500)
   }
 
   let extracted: ExtractedAnalysis
   try {
-    extracted = JSON.parse(extractedRaw) as ExtractedAnalysis
+    extracted = JSON.parse(raw) as ExtractedAnalysis
   } catch (e) {
-    console.error('Failed to parse Gemini JSON:', extractedRaw, e)
-    return c.json(
-      { error: 'invalid analysis output', raw: extractedRaw },
-      500,
-    )
+    console.error('Failed to parse OpenAI JSON:', raw, e)
+    return c.json({ error: 'invalid analysis output', raw }, 500)
   }
 
   const ops = extracted.operations_in_use ?? []

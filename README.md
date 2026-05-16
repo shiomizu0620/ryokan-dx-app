@@ -25,7 +25,7 @@
 | フロントエンド | Cloudflare Pages / React + TypeScript / Tailwind CSS / Vite |
 | サーバーレス | Cloudflare Workers / Hono |
 | データベース | Cloudflare D1 |
-| AI | Google Gemini API (`gemini-2.5-flash`) via `@google/generative-ai` |
+| AI | OpenAI Chat Completions API (`gpt-4o-mini`) via `openai` SDK |
 
 ## ディレクトリ構成（予定）
 
@@ -43,7 +43,7 @@ ryokan-dx-app/
 - Node.js 18以上
 - Git
 - Cloudflareアカウント / Wrangler CLI（`npx wrangler login`）
-- Google AI Studio の Gemini APIキー（<https://aistudio.google.com/apikey> で発行）
+- OpenAI APIキー（<https://platform.openai.com/api-keys> で発行・最低 $5 デポジット）
 
 ### 1. 依存関係インストール
 
@@ -59,14 +59,14 @@ cd ../worker && npm install
 ```bash
 cd worker
 cp .dev.vars.example .dev.vars
-# .dev.vars の GEMINI_API_KEY を本物のキーに書き換える
+# .dev.vars の OPENAI_API_KEY を本物のキーに書き換える
 ```
 
 本番環境のシークレットは Wrangler に登録します（ローカルの `.dev.vars` とは別物）。
 
 ```bash
 cd worker
-npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put OPENAI_API_KEY
 ```
 
 ### 3. D1（Cloudflare のSQLite）
@@ -97,7 +97,7 @@ cd frontend && npm run dev
 cd worker && npx wrangler dev
 ```
 
-疎通確認: `curl http://127.0.0.1:8787/api/health` で `{"ok":true,"has_gemini_key":true,"db_ok":true}` が返れば `.dev.vars` と D1 binding が両方読めています。
+疎通確認: `curl http://127.0.0.1:8787/api/health` で `{"ok":true,"has_openai_key":true,"db_ok":true}` が返れば `.dev.vars` と D1 binding が両方読めています。
 
 ## デプロイ
 
@@ -111,6 +111,27 @@ cd frontend
 npm run build
 npx wrangler pages deploy dist
 ```
+
+## 進捗 / ロードマップ
+
+`instructions.md` のフェーズ分けに沿って進めています。
+
+| フェーズ | 内容 | 状態 |
+| --- | --- | --- |
+| セットアップ | プロジェクト初期化 / Vite+React+TS / Hono Worker / D1作成・マイグレーション / OpenAI APIキー | ✅ 完了 |
+| Phase A | チャット機能（streamingレスポンス、システムプロンプト、フロントUI） | ✅ 完了 |
+| Phase B | 損失計算エンジン + 雰囲気優先ゾーン検出（業界平均値プリセット使用） | ✅ 完了 |
+| Phase C | レポート画面（損失サマリー / DXマップ / 改善策カード） | ✅ 完了 |
+| Phase D | D1永続化（セッション・施設プロフィール保存、次回診断で文脈引き継ぎ） | ⏳ 未着手 |
+| Phase E | 仕上げ（ローディング演出、エラー導線、デモシナリオ調整、ロゴ） | ⏳ 未着手 |
+| 本番デプロイ | Cloudflare Workers + Pages へデプロイ、シークレット登録 | ⏳ 未着手 |
+
+### 直近の残タスク
+
+- **Phase D**: チャット完了時に会話を構造化JSONとともに `facilities` / `sessions` テーブルに保存、同じ施設の2回目以降は前回JSONをシステムプロンプトに混ぜる
+- **Phase E**: 完了検知の自動化（「もう十分」キーワード or ターン数）、ローディングUIブラッシュアップ、エラーメッセージの日本語化、デモシナリオに沿った微調整
+- **デプロイ**: `wrangler secret put OPENAI_API_KEY` で本番シークレット登録、`wrangler deploy` で Worker をプロダクションへ、`wrangler pages deploy dist` でフロントを Pages へ
+- **オプション**: 「上司に共有」ボタン（URL/印刷）、進捗インジケータ（あと何ターンか目安）
 
 ## ライセンス
 
