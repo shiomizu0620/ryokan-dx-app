@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
 type Bindings = {
-  ANTHROPIC_API_KEY: string
+  GEMINI_API_KEY: string
   DB: D1Database
 }
 
@@ -20,7 +20,7 @@ app.use(
 app.get('/', (c) => c.text('ryokan-dx worker'))
 
 app.get('/api/health', async (c) => {
-  const key = c.env.ANTHROPIC_API_KEY
+  const key = c.env.GEMINI_API_KEY
   let db_ok = false
   try {
     await c.env.DB.prepare('SELECT 1').first()
@@ -30,7 +30,7 @@ app.get('/api/health', async (c) => {
   }
   return c.json({
     ok: true,
-    has_api_key: typeof key === 'string' && key.length > 0,
+    has_gemini_key: typeof key === 'string' && key.length > 0,
     db_ok,
   })
 })
@@ -42,13 +42,13 @@ app.post('/api/chat', async (c) => {
   const body = await c.req.json<ChatRequest>().catch(() => ({}) as ChatRequest)
   const messages = body.messages ?? []
 
-  // TODO(Phase A): forward to Claude API using c.env.ANTHROPIC_API_KEY
-  // and stream the response back.
+  // TODO(Phase A): call Gemini (gemini-2.5-flash) via @google/generative-ai
+  // using c.env.GEMINI_API_KEY and stream the response back.
   return c.json({
     ok: true,
     stub: true,
     received_messages: messages.length,
-    reply: 'chat endpoint stub — Claude API not wired yet',
+    reply: 'chat endpoint stub — Gemini API not wired yet',
   })
 })
 

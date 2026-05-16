@@ -25,7 +25,7 @@
 | フロントエンド | Cloudflare Pages / React + TypeScript / Tailwind CSS / Vite |
 | サーバーレス | Cloudflare Workers / Hono |
 | データベース | Cloudflare D1 |
-| AI | Claude API (`claude-sonnet-4-20250514`) |
+| AI | Google Gemini API (`gemini-2.5-flash`) via `@google/generative-ai` |
 
 ## ディレクトリ構成（予定）
 
@@ -43,7 +43,7 @@ ryokan-dx-app/
 - Node.js 18以上
 - Git
 - Cloudflareアカウント / Wrangler CLI（`npx wrangler login`）
-- Anthropic APIキー（`sk-ant-...`）
+- Google AI Studio の Gemini APIキー（<https://aistudio.google.com/apikey> で発行）
 
 ### 1. 依存関係インストール
 
@@ -59,14 +59,14 @@ cd ../worker && npm install
 ```bash
 cd worker
 cp .dev.vars.example .dev.vars
-# .dev.vars の ANTHROPIC_API_KEY を本物のキーに書き換える
+# .dev.vars の GEMINI_API_KEY を本物のキーに書き換える
 ```
 
 本番環境のシークレットは Wrangler に登録します（ローカルの `.dev.vars` とは別物）。
 
 ```bash
 cd worker
-npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put GEMINI_API_KEY
 ```
 
 ### 3. D1（Cloudflare のSQLite）
@@ -97,7 +97,7 @@ cd frontend && npm run dev
 cd worker && npx wrangler dev
 ```
 
-疎通確認: `curl http://127.0.0.1:8787/api/health` で `{"ok":true,"has_api_key":true,"db_ok":true}` が返れば `.dev.vars` と D1 binding が両方読めています。
+疎通確認: `curl http://127.0.0.1:8787/api/health` で `{"ok":true,"has_gemini_key":true,"db_ok":true}` が返れば `.dev.vars` と D1 binding が両方読めています。
 
 ## デプロイ
 
