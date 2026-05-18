@@ -3,3 +3,8 @@
 # For production, register secrets with: `npx wrangler secret put <NAME>`.
 
 OPENAI_API_KEY=sk-proj-replace-with-real-openai-key
+
+# Google Maps Places API (New) — used by /api/charm and /api/charm/search
+# Enable "Places API (New)" in GCP console and create an API key.
+# Restrict the key to "Places API (New)" only.
+PLACES_API_KEY=replace-with-google-places-api-key

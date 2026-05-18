@@ -69,6 +69,8 @@ export type ImprovementRec = {
   expected_reduction_hours: number
   score: number
   blocked_by_ambience: boolean
+  charm_impact?: 'safe' | 'caution' | 'risk'
+  charm_impact_reason?: string
 }
 
 const DIFFICULTY_SCORE: Record<'low' | 'medium' | 'high', number> = {

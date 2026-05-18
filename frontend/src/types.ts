@@ -3,6 +3,25 @@
 
 export type Message = { role: 'user' | 'assistant'; content: string }
 
+export type PlaceCandidate = {
+  place_id: string
+  name: string
+  address: string
+  rating?: number
+  user_rating_count?: number
+}
+
+export type Charm = {
+  facility_name: string
+  location?: string
+  charm_tags: string[]
+  charm_summary: string
+  protect_keywords: string[]
+  source: 'places' | 'manual'
+  raw_reviews_count: number
+  place_id?: string
+}
+
 export type Profile = {
   name?: string
   rooms?: number
@@ -55,9 +74,12 @@ export type ImprovementRec = {
   expected_reduction_hours: number
   score: number
   blocked_by_ambience: boolean
+  charm_impact?: 'safe' | 'caution' | 'risk'
+  charm_impact_reason?: string
 }
 
 export type AnalyzeResponse = {
+  facility_id?: string | null
   profile: Profile
   operations_in_use: OperationInUse[]
   zones: Zone[]
