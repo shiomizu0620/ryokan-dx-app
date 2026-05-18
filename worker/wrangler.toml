@@ -9,8 +9,6 @@ port = 8787
 
 # Declare secret names so wrangler passes them through as Worker bindings.
 # Actual values come from .dev.vars (local) or `wrangler secret put` (prod).
-[vars]
-PLACES_API_KEY = ""
 
 # D1 database binding.
 [[d1_databases]]
