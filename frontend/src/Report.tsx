@@ -33,6 +33,16 @@ const OPERATION_LABELS: Record<string, string> = {
   verbal_staff: '口頭でのスタッフ間連絡',
   paper_shift: '紙のシフト管理',
   new_staff_onboarding: '新人教育（属人化）',
+  reservation_phone: '電話予約の手動台帳記録',
+  checkin_manual: '手書きチェックイン台帳',
+  checkout_manual: '手動精算・現金管理',
+  cleaning_verbal: '清掃指示の口頭・紙連絡',
+  amenity_request: 'アメニティ・備品の口頭対応',
+  maintenance_log: '設備メンテのアナログ記録',
+  review_response: '口コミ返信の手作業',
+  multilingual_response: '外国人ゲストへの個別対応',
+  invoice_manual: '請求書・領収書の手書き',
+  occupancy_excel: '稼働予測・売上管理のExcel作業',
 }
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -345,6 +355,11 @@ function ImprovementCard({
 
       {expanded && (
         <div className="border-t border-zinc-100 bg-zinc-50 px-4 py-4 sm:px-5 space-y-4">
+          {imp.personalized_advice && (
+            <div className="rounded-xl bg-white border border-zinc-200 px-3 py-2.5 text-xs text-zinc-700 leading-relaxed">
+              <span className="font-semibold text-zinc-900">このお宿への提案: </span>{imp.personalized_advice}
+            </div>
+          )}
           {imp.charm_impact_reason && (
             <div className={`rounded-xl px-3 py-2.5 text-xs leading-relaxed border ${
               imp.charm_impact === 'risk'

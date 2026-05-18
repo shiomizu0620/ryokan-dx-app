@@ -54,17 +54,18 @@ export function Chat({ messages, setMessages, onAnalyze, facilityId, charm }: Pr
   }, [messages])
 
   const userTurns = messages.filter((m) => m.role === 'user').length
-  const canAnalyze = userTurns >= 1 && !streaming
 
   const lastUserMsg = messages.filter((m) => m.role === 'user').at(-1)
   const completionKeywordSent =
     lastUserMsg != null &&
     COMPLETION_KEYWORDS.some((kw) => lastUserMsg.content.includes(kw))
   const lastMsgIsAssistant = messages.at(-1)?.role === 'assistant'
-  const showCompletionBanner =
-    canAnalyze &&
-    (chatComplete || completionKeywordSent || userTurns >= 5) &&
-    lastMsgIsAssistant
+
+  // Allow analysis only when the conversation is genuinely complete.
+  // userTurns >= 12 is a fallback escape hatch in case [[COMPLETE]] never fires.
+  const conversationReady = chatComplete || completionKeywordSent || userTurns >= 12
+  const canAnalyze = conversationReady && !streaming
+  const showCompletionBanner = canAnalyze && lastMsgIsAssistant
 
   async function send() {
     const trimmed = input.trim()

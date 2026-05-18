@@ -76,6 +76,7 @@ export type ImprovementRec = {
   blocked_by_ambience: boolean
   charm_impact?: 'safe' | 'caution' | 'risk'
   charm_impact_reason?: string
+  personalized_advice?: string | null
 }
 
 export type AnalyzeResponse = {

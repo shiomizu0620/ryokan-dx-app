@@ -12,12 +12,16 @@ import {
 } from './presets'
 
 export type ExtractedProfile = {
-  name?: string
-  rooms?: number
-  staff_count?: number
-  foreign_ratio?: number
-  main_customer?: string
-  stay_pattern?: string
+  name?: string | null
+  rooms?: number | null
+  staff_count?: number | null
+  foreign_ratio?: number | null
+  main_customer?: string | null
+  stay_pattern?: string | null
+  occupancy_rate?: number | null
+  avg_hourly_wage?: number | null
+  busy_months_per_year?: number | null
+  existing_tools?: string[] | null
 }
 
 export type ExtractedOperation = {
@@ -38,6 +42,7 @@ export type ExtractedAnalysis = {
   profile: ExtractedProfile
   operations_in_use: ExtractedOperation[]
   zones: ExtractedZone[]
+  improvement_notes: Record<string, string | null>
 }
 
 export type LossBreakdownItem = {
@@ -71,6 +76,7 @@ export type ImprovementRec = {
   blocked_by_ambience: boolean
   charm_impact?: 'safe' | 'caution' | 'risk'
   charm_impact_reason?: string
+  personalized_advice?: string | null
 }
 
 const DIFFICULTY_SCORE: Record<'low' | 'medium' | 'high', number> = {
@@ -91,8 +97,10 @@ function ngOperationIds(zones: ExtractedZone[]): Set<OperationId> {
 export function computeLosses(
   operations: ExtractedOperation[],
   zones: ExtractedZone[],
+  profile?: ExtractedProfile,
 ): LossSummary {
   const ng = ngOperationIds(zones)
+  const hourlyWage = profile?.avg_hourly_wage ?? STAFF_HOURLY_YEN
 
   const breakdown: LossBreakdownItem[] = []
   for (const op of operations) {
@@ -100,7 +108,7 @@ export function computeLosses(
     if (!preset) continue
     const monthly_minutes = preset.minutes_per_occurrence * op.monthly_occurrences
     const monthly_hours = monthly_minutes / 60
-    const yen_labor = Math.round(monthly_hours * STAFF_HOURLY_YEN)
+    const yen_labor = Math.round(monthly_hours * hourlyWage)
     const yen_error = Math.round(
       preset.error_rate * op.monthly_occurrences * ERROR_HANDLING_YEN,
     )
@@ -142,6 +150,7 @@ type ImprovementCandidate = {
 export function recommendImprovements(
   losses: LossSummary,
   zones: ExtractedZone[],
+  improvementNotes?: Record<string, string | null>,
 ): ImprovementRec[] {
   const lossByOp = new Map(losses.breakdown.map((b) => [b.operation_id, b]))
   const ng = ngOperationIds(zones)
@@ -189,6 +198,7 @@ export function recommendImprovements(
         expected_reduction_hours: c.expected_reduction_hours,
         score: Math.round(score * 1000) / 1000,
         blocked_by_ambience: c.blocked,
+        personalized_advice: improvementNotes?.[c.imp.id] ?? null,
       }
     })
     .sort((a, b) => b.score - a.score)
