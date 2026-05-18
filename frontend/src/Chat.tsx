@@ -23,9 +23,19 @@ const COMPLETE_MARKER = '[[COMPLETE]]'
 
 function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' }) {
   const sz = size === 'sm' ? 'w-6 h-6 rounded-md text-[9px]' : 'w-8 h-8 rounded-lg text-xs'
+  const [imgError, setImgError] = useState(false)
   return (
-    <div className={`${sz} bg-zinc-950 flex items-center justify-center shrink-0`}>
-      <span className="text-white font-bold">番</span>
+    <div className={`${sz} bg-zinc-950 flex items-center justify-center shrink-0 overflow-hidden`}>
+      {!imgError ? (
+        <img
+          src="/bantou.png"
+          alt="番頭さん"
+          className="w-full h-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <span className="text-white font-bold">番</span>
+      )}
     </div>
   )
 }
